@@ -1952,6 +1952,20 @@ function ensureSlsBoundaries(){
       const res = await fetch('batas_sls.geojson');
       if(!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
+      // Sederhanakan geometri poligon (kurangi jumlah titik koordinat) sebelum dipakai. Data batas
+      // wilayah ini dipakai berulang — garis batas SLS DAN hasil gabungannya (Kecamatan/Desa/Kabupaten)
+      // dipasang ke SETIAP peta (SLS, Desa, Wilayah Lengkap) sekaligus, jadi total datanya berlipat
+      // ganda di memori/GPU browser. Toleransi kecil (~30m) nyaris tidak terlihat bedanya di skala peta
+      // Kabupaten/Kecamatan, tapi bisa memangkas titik koordinat secara signifikan — penting supaya
+      // aplikasi tidak kehabisan memori kalau dibiarkan terbuka lama (lihat juga catatan pada syncFromSheets).
+      if(typeof turf !== 'undefined' && turf.simplify){
+        try {
+          data.features = (data.features || []).map(f=>{
+            try { return turf.simplify(f, {tolerance:0.0003, highQuality:false, mutate:false}); }
+            catch(e){ return f; } // kalau satu poligon gagal disederhanakan, pakai bentuk aslinya saja
+          });
+        } catch(e){ console.warn('Gagal menyederhanakan geometri batas wilayah:', e && e.message); }
+      }
       slsBoundaryData = data;
       slsBoundaryIndex = new Map();
       (data.features || []).forEach(f=>{
