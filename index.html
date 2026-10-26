@@ -3693,7 +3693,13 @@ async function syncFromSheets(silent, isBackgroundPoll){
   try {
     const [slsRows, desaRows] = await Promise.all([fetchSheetRows('sls'), fetchSheetRows('desa')]);
     const newSignature = computeDataSignature(slsRows, desaRows);
-    const dataChanged = lastDataSignature !== null && newSignature !== lastDataSignature;
+    const isFirstSync = lastDataSignature === null;
+    const dataChanged = !isFirstSync && newSignature !== lastDataSignature;
+    // Lewati pembangunan ulang tabel & marker peta (berat — bisa ratusan marker di 2 peta sekaligus)
+    // kalau datanya memang tidak berubah sejak sinkron terakhir. Tanpa ini, auto-refresh tiap 60 detik
+    // DAN setiap kali tab dibuka lagi selalu membongkar-pasang semua marker walau tidak perlu — lama-lama
+    // (dibiarkan terbuka lama / sering pindah tab) ini bisa membebani memori/GPU browser sampai crash.
+    const needsRender = isFirstSync || dataChanged;
     lastDataSignature = newSignature;
     SLS_DATA.length = 0;
     slsRows.forEach(r=>SLS_DATA.push({
@@ -3708,12 +3714,14 @@ async function syncFromSheets(silent, isBackgroundPoll){
       jml_nonsls:r.jml_nonsls, jml_bs:r.jml_bs, lat:parseFloat(r.lat), lng:parseFloat(r.lng),
       status_verifikasi:r.status_verifikasi||''
     }));
-    rebuildFilterOptions();
-    dupFlagsDirty = true;
-    renderStats(); renderSls(); renderDesa(); renderPeta();
-    // Perbarui lapisan "Titik Desa/Kelurahan" (kalau sudah pernah dipasang di salah satu peta) supaya
-    // tetap mengikuti data Desa terbaru setelah sinkron.
-    [mapSls, mapDesa, mapPeta].forEach(m=>{ if(m && m.getSource && m.getSource('desa-points')) ensureDesaPointLayer(m); });
+    if(needsRender){
+      rebuildFilterOptions();
+      dupFlagsDirty = true;
+      renderStats(); renderSls(); renderDesa(); renderPeta();
+      // Perbarui lapisan "Titik Desa/Kelurahan" (kalau sudah pernah dipasang di salah satu peta) supaya
+      // tetap mengikuti data Desa terbaru setelah sinkron.
+      [mapSls, mapDesa, mapPeta].forEach(m=>{ if(m && m.getSource && m.getSource('desa-points')) ensureDesaPointLayer(m); });
+    }
     try { localStorage.setItem('lastSyncTimestamp', new Date().toISOString()); } catch(e){}
     setSyncStatus('online', `🟢 Tersambung ke Google Sheets — data terbaru pukul ${new Date().toLocaleTimeString('id-ID')} (baru saja)`);
     if(isBackgroundPoll){
