@@ -16,7 +16,7 @@
  * Menaikkan CACHE_VERSION tetap berguna sesekali (misalnya kalau mengganti
  * ikon/manifest), karena itu akan membersihkan cache lama yang menumpuk.
  */
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const CACHE_NAME = 'sls-enrekang-' + CACHE_VERSION;
 
 // Berkas inti aplikasi (app shell) yang wajib tersedia offline.
