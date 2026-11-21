@@ -16,7 +16,7 @@
  * Menaikkan CACHE_VERSION tetap berguna sesekali (misalnya kalau mengganti
  * ikon/manifest), karena itu akan membersihkan cache lama yang menumpuk.
  */
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const CACHE_NAME = 'sls-enrekang-' + CACHE_VERSION;
 
 // Berkas inti aplikasi (app shell) yang wajib tersedia offline.
@@ -28,7 +28,9 @@ const CORE_ASSETS = [
   './icon-192.png',
   './icon-512.png',
   './icon-512-maskable.png',
-  './peta_wilayah_enrekang.svg'
+  './peta_wilayah_enrekang.svg',
+  './batas_sls.geojson',          // batas MFD 2026-1
+  './batas_sls_2025_2.geojson'    // batas arsip MFD 2025-2
 ];
 
 self.addEventListener('install', (event) => {
@@ -75,12 +77,16 @@ self.addEventListener('fetch', (event) => {
     || url.pathname.endsWith('/index.html')
     || url.pathname.endsWith('.html');
 
-  if (isHtmlDocument) {
-    // NETWORK-FIRST untuk halaman utama: setiap update index.html langsung
+  // Berkas batas wilayah (.geojson) juga NETWORK-FIRST (v6): kalau cache-first, perangkat
+  // yang pernah memuat batas lama akan menampilkan batas LAMA dulu setelah file diganti di GitHub.
+  const isBoundaryGeojson = url.pathname.endsWith('.geojson');
+
+  if (isHtmlDocument || isBoundaryGeojson) {
+    // NETWORK-FIRST untuk halaman utama & berkas batas: setiap update langsung
     // terlihat begitu pengguna online, tanpa jeda cache sama sekali.
     // Cache lama dipakai HANYA kalau jaringan benar-benar tidak terjangkau.
     event.respondWith(
-      fetch(req)
+      (isBoundaryGeojson ? fetch(req.url, { cache: 'no-cache' }) : fetch(req))
         .then((res) => {
           if (res && res.status === 200) {
             const resClone = res.clone();
