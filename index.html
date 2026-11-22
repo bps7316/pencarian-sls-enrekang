@@ -538,6 +538,10 @@
         </div>
         <div id="compareKecResult"></div>
       </div>
+      <div class="chart-box" style="margin-bottom:14px;" id="mfdChangeBox">
+        <div class="chart-title"><span class="chart-dot" style="background:var(--clay);"></span><span id="mfdChangeTitle">Keterangan Perubahan SLS</span></div>
+        <div id="mfdChangeBody" style="margin-top:8px;"></div>
+      </div>
     </div>
     <div class="count-line">
       <span>Rekap seluruh kecamatan di Kabupaten Enrekang</span>
@@ -759,6 +763,7 @@
       <ul>
         <li>Grafik batang jumlah Desa/Kelurahan dan SLS per kecamatan, bisa diunduh sebagai gambar PNG lewat tombol <b>⬇ PNG</b> di tiap grafik.</li>
         <li><b>Mode Perbandingan Kecamatan</b> — pilih dua kecamatan untuk membandingkan jumlah desa, SLS, dan sub-SLS berdampingan.</li>
+        <li>Di bawahnya ada <b>Keterangan Perubahan SLS</b>: daftar pemekaran, penggabungan, perubahan batas, dan perubahan nama pada versi MFD yang dipilih, beserta selisih jumlah sub-SLS per kecamatan.</li>
       </ul>
       <h4>🧭 Navigasi</h4>
       <ul>
@@ -897,19 +902,36 @@ function mfdBaruBadge(row){
   if(k.indexOf('NaN')>=0 || MFD_KEYS_ARSIP.has(k)) return '';
   return ' <span class="pill" style="background:#e5f6e8;color:#1c6b2e;border:1px solid #a8d8b2;" title="SLS baru pada MFD 2026-1">🆕 Baru</span>';
 }
-function openMfdNotes(){
-  const c = MFD_CATATAN[mfdVersion] || {judul:'', ringkas:'', items:[]};
-  const esc = t=>String(t).replace(/[&<>]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
-  document.getElementById('mfdNotesTitle').textContent = '📝 ' + c.judul;
-  let h = `<p>${esc(c.ringkas)}</p>`;
+function mfdEsc(t){ return String(t).replace(/[&<>]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch])); }
+function mfdNotesHtml(c){
+  let h = `<p>${mfdEsc(c.ringkas)}</p>`;
   if(c.items.length){
-    h += '<table style="width:100%;border-collapse:collapse;font-size:14px;"><thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ccd;">Jenis</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ccd;">Wilayah</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ccd;">Keterangan</th></tr></thead><tbody>'
-      + c.items.map(it=>`<tr><td style="padding:6px;vertical-align:top;font-weight:600;white-space:nowrap;">${esc(it[0])}</td><td style="padding:6px;vertical-align:top;">${esc(it[1])}</td><td style="padding:6px;vertical-align:top;">${esc(it[2])}</td></tr>`).join('')
-      + '</tbody></table>';
+    const th = 'text-align:left;padding:6px;border-bottom:1px solid #ccd;';
+    h += `<div class="table-scroll"><table style="width:100%;border-collapse:collapse;font-size:14px;"><thead><tr><th style="${th}">Jenis</th><th style="${th}">Wilayah</th><th style="${th}">Keterangan</th></tr></thead><tbody>`
+      + c.items.map(it=>`<tr><td style="padding:6px;vertical-align:top;font-weight:600;white-space:nowrap;">${mfdEsc(it[0])}</td><td style="padding:6px;vertical-align:top;">${mfdEsc(it[1])}</td><td style="padding:6px;vertical-align:top;">${mfdEsc(it[2])}</td></tr>`).join('')
+      + '</tbody></table></div>';
   } else {
     h += '<p><i>Tidak ada catatan perubahan.</i></p>';
   }
-  document.getElementById('mfdNotesBody').innerHTML = h;
+  return h;
+}
+function mfdSelisihKecamatanHtml(){
+  if(mfdIsArsip()) return '';
+  const lama = KEC_AGG_BY_VER['2025_2'], baru = KEC_AGG_BY_VER['2026_1'];
+  const beda = baru.map(b=>{ const a = lama.find(x=>x.nmkec===b.nmkec); return a ? {nm:b.nmkec, d:b.jml_subsls - a.jml_subsls} : null; }).filter(x=>x && x.d!==0);
+  if(!beda.length) return '';
+  return '<p style="margin-top:10px;font-size:13px;color:var(--muted);">Selisih jumlah sub-SLS dibanding MFD 2025-2: ' + beda.map(x=>`<b>${mfdEsc(x.nm)}</b> ${x.d>0?'+':''}${x.d}`).join(', ') + '.</p>';
+}
+function renderMfdChangeBox(){
+  const body = document.getElementById('mfdChangeBody'); if(!body) return;
+  const c = MFD_CATATAN[mfdVersion] || {judul:'', ringkas:'', items:[]};
+  document.getElementById('mfdChangeTitle').textContent = 'Keterangan Perubahan SLS — ' + c.judul;
+  body.innerHTML = mfdNotesHtml(c) + mfdSelisihKecamatanHtml();
+}
+function openMfdNotes(){
+  const c = MFD_CATATAN[mfdVersion] || {judul:'', ringkas:'', items:[]};
+  document.getElementById('mfdNotesTitle').textContent = '📝 ' + c.judul;
+  document.getElementById('mfdNotesBody').innerHTML = mfdNotesHtml(c);
   document.getElementById('mfdNotesModal').style.display = 'flex';
 }
 (function wireMfdNotes(){
@@ -922,6 +944,7 @@ function openMfdNotes(){
 })();
 function updateMfdLabels(){
   const t = 'MFD ' + mfdVersion;
+  try{ renderMfdChangeBox(); }catch(e){}
   const a = document.getElementById('mfdBadge'); if(a) a.textContent = t;
   const b = document.getElementById('mfdFooterLabel'); if(b) b.textContent = t;
 }
