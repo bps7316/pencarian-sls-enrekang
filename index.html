@@ -376,6 +376,7 @@
           <option value="2026_1">MFD 2026-1 (terbaru)</option>
           <option value="2025_2">MFD 2025-2 (arsip, hanya lihat)</option>
         </select>
+        <button class="btn outline" id="mfdNotesBtn" type="button" title="Lihat catatan perubahan dan penambahan wilayah pada versi MFD yang dipilih">📝 Catatan perubahan</button>
         <select id="slsKecFilter"><option value="">Semua Kecamatan</option></select>
         <select id="slsDesaFilter"><option value="">Semua Desa/Kelurahan</option></select>
         <label class="toggle-label"><input type="checkbox" id="slsRingkas"> Mode ringkas (sembunyikan kolom kode &amp; koordinat)</label>
@@ -696,6 +697,14 @@
   </footer>
 </div>
 
+<div class="modal-overlay" id="mfdNotesModal" style="display:none;">
+  <div class="modal-box" style="max-width:720px;">
+    <h3 id="mfdNotesTitle">📝 Catatan perubahan</h3>
+    <div class="help-body" id="mfdNotesBody"></div>
+    <div style="text-align:right;margin-top:12px;"><button class="btn" type="button" id="mfdNotesClose">Tutup</button></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="helpModal" style="display:none;">
   <div class="modal-box" style="max-width:600px;">
     <h3>❓ Cara Pakai — Pencarian SLS Enrekang</h3>
@@ -707,6 +716,7 @@
         <li><b>✕ Reset Filter</b> mengembalikan semua pencarian ke awal. Pencarian/filter terakhir otomatis diingat saat Anda membuka lagi.</li>
         <li><b>Mode ringkas</b> menyembunyikan kolom kode dan angka koordinat supaya tabel lebih ringkas di layar kecil.</li>
         <li><b>Klik baris tabel</b> untuk menerbangkan peta di bawahnya ke titik itu.</li>
+        <li>Tombol <b>📝 Catatan perubahan</b> menampilkan daftar pemekaran, penggabungan, perubahan batas, dan perubahan nama pada versi MFD yang dipilih. SLS yang baru muncul di MFD 2026-1 diberi lencana <b>🆕 Baru</b>.</li>
         <li>Pilihan <b>MFD 2026-1 / MFD 2025-2</b> di baris filter mengganti versi Master Frame Desa. <b>2026-1</b> adalah data terbaru dari Google Sheets (bisa diperbarui). <b>2025-2</b> adalah arsip yang hanya bisa dilihat: tombol update koordinat, verifikasi, riwayat, dan QR disembunyikan, dan batas wilayahnya memakai berkas batas versi 2025-2. Pilihan terakhir diingat di perangkat ini.</li>
         <li>Badge <b>⏳ n</b> di judul tab menunjukkan jumlah data yang belum diverifikasi pada tab itu.</li>
         <li>Tombol <b>☆/⭐</b> di samping nama dusun menandai SLS sebagai favorit (tersimpan di perangkat ini). Centang <b>⭐ Hanya tampilkan favorit</b> untuk menyaring daftar.</li>
@@ -861,6 +871,55 @@ const MFD_BOUNDARY_FILES = { '2026_1':'batas_sls.geojson', '2025_2':'batas_sls_2
 let mfdVersion = '2026_1';
 try { const sv = localStorage.getItem('mfd_version'); if(MFD_VERSIONS[sv]) mfdVersion = sv; } catch(e){}
 function mfdIsArsip(){ return mfdVersion !== '2026_1'; }
+/* Catatan perubahan tiap versi MFD. Setiap semester baru: tambah satu blok di sini. */
+const MFD_CATATAN = {
+  '2026_1': {
+    judul: 'MFD 2026-1 — dari 669 menjadi 668 sub-SLS',
+    ringkas: 'Perubahan dibandingkan MFD 2025-2.',
+    items: [
+      ['Pemekaran','Desa Tuara, Kec. Enrekang','Lingkungan Barani (kode 20-23-4-0) mekar dari Lingkungan Malauwe.'],
+      ['Penggabungan','Desa Batu Mila, Kec. Maiwa','Dusun Botto Kuang digabung ke Dusun Botto Dengen.'],
+      ['Penggabungan','Desa Pepandungan, Kec. Baraka','Dusun Pedunian digabung ke Dusun Dante Koa.'],
+      ['Perubahan batas','Desa Tiro Wali, Kec. Enrekang','Batas Dusun Balombong berubah.'],
+      ['Perubahan nama','Desa Ledan','Kode 31-2-1 menjadi Dusun Pongde, dan kode 31-2-5 menjadi Dusun Dante Malua.']
+    ]
+  },
+  '2025_2': {
+    judul: 'MFD 2025-2 — arsip, 669 sub-SLS',
+    ringkas: 'Versi awal yang dipakai sebagai pembanding. Hanya bisa dilihat.',
+    items: []
+  }
+};
+const MFD_KEYS_ARSIP = new Set(SLS_ARSIP_2025_2.map(r=>[r.kdkec,r.kddesa,r.kdsls,r.kdsubsls].map(Number).join('-')));
+function mfdBaruBadge(row){
+  if(mfdIsArsip()) return '';
+  const k = [row.kdkec,row.kddesa,row.kdsls,row.kdsubsls].map(Number).join('-');
+  if(k.indexOf('NaN')>=0 || MFD_KEYS_ARSIP.has(k)) return '';
+  return ' <span class="pill" style="background:#e5f6e8;color:#1c6b2e;border:1px solid #a8d8b2;" title="SLS baru pada MFD 2026-1">🆕 Baru</span>';
+}
+function openMfdNotes(){
+  const c = MFD_CATATAN[mfdVersion] || {judul:'', ringkas:'', items:[]};
+  const esc = t=>String(t).replace(/[&<>]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
+  document.getElementById('mfdNotesTitle').textContent = '📝 ' + c.judul;
+  let h = `<p>${esc(c.ringkas)}</p>`;
+  if(c.items.length){
+    h += '<table style="width:100%;border-collapse:collapse;font-size:14px;"><thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ccd;">Jenis</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ccd;">Wilayah</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ccd;">Keterangan</th></tr></thead><tbody>'
+      + c.items.map(it=>`<tr><td style="padding:6px;vertical-align:top;font-weight:600;white-space:nowrap;">${esc(it[0])}</td><td style="padding:6px;vertical-align:top;">${esc(it[1])}</td><td style="padding:6px;vertical-align:top;">${esc(it[2])}</td></tr>`).join('')
+      + '</tbody></table>';
+  } else {
+    h += '<p><i>Tidak ada catatan perubahan.</i></p>';
+  }
+  document.getElementById('mfdNotesBody').innerHTML = h;
+  document.getElementById('mfdNotesModal').style.display = 'flex';
+}
+(function wireMfdNotes(){
+  const m = document.getElementById('mfdNotesModal');
+  const close = ()=>{ m.style.display='none'; };
+  document.getElementById('mfdNotesBtn').addEventListener('click', openMfdNotes);
+  document.getElementById('mfdNotesClose').addEventListener('click', close);
+  m.addEventListener('click', e=>{ if(e.target===m) close(); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && m.style.display==='flex') close(); });
+})();
 function updateMfdLabels(){
   const t = 'MFD ' + mfdVersion;
   const a = document.getElementById('mfdBadge'); if(a) a.textContent = t;
@@ -3014,7 +3073,7 @@ function renderSls(){
       return `
       <tr class="row-focusable" data-row-id="${row.id}" title="Klik baris untuk menyorot titik di peta" onclick="focusRowOnMap(event,this,'sls',${row.lat},${row.lng},${row.id})">
         <td class="no">${i+1}</td>
-        <td>${favBtn}${highlight(row.nmsls,q)}${dupNameBadge(slsDupFlags,row.id)}${distBadge}</td>
+        <td>${favBtn}${highlight(row.nmsls,q)}${dupNameBadge(slsDupFlags,row.id)}${mfdBaruBadge(row)}${distBadge}</td>
         <td class="col-code">${pad(row.kdkec,3)}</td>
         <td>${highlight(row.nmkec,q)}</td>
         <td class="col-code">${pad(row.kddesa,3)}</td>
