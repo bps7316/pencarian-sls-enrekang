@@ -599,6 +599,7 @@
         <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="desa" checked> Batas desa</label>
         <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="labeldesa" checked> Nama &amp; kode desa</label>
         <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="kantor" checked> Kantor desa</label>
+        <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="kantorkec" checked> Kantor kecamatan</label>
         <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="sungai" checked> Sungai</label>
         <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="jalan"> Jalan</label>
         <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="gunung"> Gunung</label>
@@ -784,6 +785,8 @@
         <li>Klik titik <b>kosong</b> di peta (bukan kena batas wilayah/titik) akan mencari & menampilkan SLS terdekat dari titik itu beserta jaraknya — berguna kalau tahu lokasinya di peta tapi lupa nama SLS-nya.</li>
         <li>Badge <b>🗺️✕ Belum ada batas</b> di tabel Cari Dusun/SLS menandai SLS/sub-SLS yang belum punya data poligon batas wilayah. Centang <b>"Hanya tampilkan yang belum ada batas wilayah"</b> di filter untuk menyaring daftar prioritas survei/digitasi.</li>
         <li>Untuk memperbesar/memperkecil peta dengan scroll, tahan <b>Ctrl</b> (atau pakai dua jari di HP); scroll biasa tetap menggulir halaman.</li>
+        <li>Di menu <b>🗺️ Lapisan Peta</b> ada tiga centang tambahan, semuanya mati sejak awal: <b>Jalan (kabupaten, kecamatan, desa)</b>, <b>Kantor Desa/Kelurahan</b>, dan <b>Kantor Kecamatan</b>. Klik titik kantor untuk melihat nama dan koordinatnya. Posisi kantor diambil dari peta, belum diukur di lapangan, jadi sifatnya perkiraan. Lapisan ini hanya tampil kalau berkas <code>jalan_dari_peta.geojson</code> dan <code>titik_kantor.geojson</code> ada di folder aplikasi.</li>
+        <li>Di tab <b>Peta Wilayah Lengkap</b>, tombol <b>🗺️ Peta Lengkap</b> menampilkan peta detail (nama dusun) dari Affinity, sedangkan <b>📄 Peta Ringkas</b> menampilkan peta berlapis yang ringan. Pada Peta Ringkas, kotak <b>Tampilkan layer</b> mengatur batas SLS, batas desa, nama dan kode desa, kantor desa, kantor kecamatan, sungai, jalan, gunung, serta pasar/SPBU/kampus/lapangan. Pilihan Anda diingat di perangkat ini. Legenda ikut tampil atau hilang sesuai layer.</li>
         <li>Tombol 🌙/☀️ di pojok atas mengganti mode gelap/terang.</li>
       </ul>
       <h4>🔔 Sinkron otomatis</h4>
@@ -990,10 +993,10 @@ function updatePetaStatisNote(){
 }
 const PETA_STATIS_FILES = {lengkap:'peta_wilayah_enrekang.svg', ringkas:'peta_wilayah_ringkas.svg'};
 const PETA_LAYER_MAP = {
-  sls:['lyr-sls'], desa:['lyr-batas-desa'], labeldesa:['lyr-label-desa'], kantor:['lyr-kantor','lgd-kantor'],
+  sls:['lyr-sls'], desa:['lyr-batas-desa'], labeldesa:['lyr-label-desa'], kantor:['lyr-kantor','lgd-kantor'], kantorkec:['lyr-kantor-kec','lgd-kantor-kec'],
   sungai:['lyr-sungai','lgd-sungai'], jalan:['lyr-jalan','lgd-jalan'], gunung:['lyr-gunung','lgd-gunung'], fasilitas:['lyr-fasilitas','lgd-fas']
 };
-let petaLayerState = {sls:true, desa:true, labeldesa:true, kantor:true, sungai:true, jalan:false, gunung:false, fasilitas:false};
+let petaLayerState = {sls:true, desa:true, labeldesa:true, kantor:true, kantorkec:true, sungai:true, jalan:false, gunung:false, fasilitas:false};
 try{ Object.assign(petaLayerState, JSON.parse(localStorage.getItem('peta_layer')||'{}')); }catch(e){}
 let petaInlineLoaded = false;
 function applyPetaLayers(){
@@ -1367,7 +1370,7 @@ const MAP_STYLE = 'https://tiles.openfreemap.org/styles/bright';
    tidak pernah membongkar ulang peta, sehingga semua lapisan kustom (batas wilayah, klaster, dll.)
    TIDAK PERNAH hilang/perlu dipasang ulang, dan beralih mode jadi instan tanpa flicker. */
 // Prefix/nama layer kustom milik kita sendiri — TIDAK boleh ikut disembunyikan saat toggle Default/Satelit.
-const CUSTOM_LAYER_PREFIXES = ['esri-satellite', 'sls-boundaries', 'peta-sls', 'peta-desa', 'cluster'];
+const CUSTOM_LAYER_PREFIXES = ['esri-satellite', 'sls-boundaries', 'peta-sls', 'peta-desa', 'cluster', 'jalan-peta', 'kantor-'];
 function isCustomLayerId(id){
   return CUSTOM_LAYER_PREFIXES.some(p => id === p || id.indexOf(p) === 0);
 }
@@ -1640,6 +1643,7 @@ function createMap(containerId, scrollZoom){
   addKecamatanPointToggle(map, containerId, layersMenu.lapisanSection);
   addDesaPointToggle(map, containerId, layersMenu.lapisanSection);
   addRoadToggle(map, containerId, layersMenu.lapisanSection);
+  addExtraLayerToggles(map, containerId, layersMenu.lapisanSection);
   addMeasureTool(map, containerId, layersMenu.alatSection);
   addLocateMeControl(map, containerId, layersMenu.alatSection);
   addMapSnapshotControl(map, containerId, layersMenu.alatSection);
@@ -2140,22 +2144,22 @@ function initMaps(){
   if(mapSls){
     // ensureSatelliteSource DULUAN (merekam daftar layer bawaan sebelum ada layer kustom apa pun).
     mapSls.on('load', ()=>ensureSatelliteSource(mapSls));
-    mapSls.on('load', ()=>ensureBoundaryLayer(mapSls));
-    mapSls.on('style.load', ()=>ensureBoundaryLayer(mapSls));
+    mapSls.on('load', ()=>{ ensureBoundaryLayer(mapSls); ensureExtraLayers(mapSls); });
+    mapSls.on('style.load', ()=>{ ensureBoundaryLayer(mapSls); ensureExtraLayers(mapSls); });
   }
   if(mapDesa){
     // Desa tidak punya file batas sendiri, tapi batas SLS-nya tetap dipasang di sini supaya bisa
     // disorot gabungan ("union") saat baris Desa diklik (lihat focusRowOnMap).
     mapDesa.on('load', ()=>ensureSatelliteSource(mapDesa));
-    mapDesa.on('load', ()=>ensureBoundaryLayer(mapDesa));
-    mapDesa.on('style.load', ()=>ensureBoundaryLayer(mapDesa));
+    mapDesa.on('load', ()=>{ ensureBoundaryLayer(mapDesa); ensureExtraLayers(mapDesa); });
+    mapDesa.on('style.load', ()=>{ ensureBoundaryLayer(mapDesa); ensureExtraLayers(mapDesa); });
   }
   if(mapPeta){
     mapPeta.on('load', ()=>ensureSatelliteSource(mapPeta));
     mapPeta.on('load', ensurePetaLayers);
     mapPeta.on('style.load', ensurePetaLayers);
-    mapPeta.on('load', ()=>ensureBoundaryLayer(mapPeta));
-    mapPeta.on('style.load', ()=>ensureBoundaryLayer(mapPeta));
+    mapPeta.on('load', ()=>{ ensureBoundaryLayer(mapPeta); ensureExtraLayers(mapPeta); });
+    mapPeta.on('style.load', ()=>{ ensureBoundaryLayer(mapPeta); ensureExtraLayers(mapPeta); });
     addPetaLegend('petaMap');
   }
 }
@@ -2621,6 +2625,93 @@ function addRoadToggle(map, containerId, section){
     section.appendChild(row);
   }
   map._applyRoadVisibility = applyVisibility;
+}
+
+
+/* ---------- Lapisan tambahan dari peta Affinity: jalan (kabupaten/kecamatan/desa), titik kantor desa dan kantor kecamatan ----------
+   Data: jalan_dari_peta.geojson dan titik_kantor.geojson (satu folder dengan index.html). Titik kantor diambil dari peta
+   (belum diukur di lapangan), jadi tampil sebagai "perkiraan" di popup. Semua default mati supaya peta tidak ramai. */
+const EXTRA_FILES = { jalan:'jalan_dari_peta.geojson', kantor:'titik_kantor.geojson' };
+let extraData = { jalan:null, kantor:null };
+let extraLoadPromise = null;
+let extraVisible = {};
+function loadExtraData(){
+  if(extraLoadPromise) return extraLoadPromise;
+  extraLoadPromise = Promise.all(Object.keys(EXTRA_FILES).map(async k=>{
+    try{
+      const r = await fetch(EXTRA_FILES[k], {cache:'no-cache'});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      extraData[k] = await r.json();
+    }catch(e){ console.warn('Lapisan tambahan ' + EXTRA_FILES[k] + ' tidak tersedia:', e && e.message); }
+  })).then(()=>{ [mapSls, mapDesa, mapPeta].forEach(m=>{ if(m) ensureExtraLayers(m); }); });
+  return extraLoadPromise;
+}
+function ensureExtraLayers(map){
+  if(!map) return;
+  if(!extraLoadPromise){ loadExtraData(); return; }
+  try{
+    if(!map.getStyle()){ setTimeout(()=>ensureExtraLayers(map), 300); return; }
+    if(extraData.jalan && !map.getSource('jalan-peta')){
+      map.addSource('jalan-peta', {type:'geojson', data:extraData.jalan});
+      map.addLayer({ id:'jalan-peta-line', type:'line', source:'jalan-peta', layout:{visibility:'none','line-cap':'round','line-join':'round'},
+        paint:{ 'line-color':['match',['get','kelas'],'Jalan Kabupaten','#b5121b','Jalan Kecamatan','#e4572e','#f2a65a'],
+                'line-width':['match',['get','kelas'],'Jalan Kabupaten',3.2,'Jalan Kecamatan',2.2,1.4] } });
+    }
+    if(extraData.kantor && !map.getSource('kantor-peta')){
+      map.addSource('kantor-peta', {type:'geojson', data:extraData.kantor});
+      map.addLayer({ id:'kantor-desa-circle', type:'circle', source:'kantor-peta', filter:['==',['get','jenis'],'desa'], layout:{visibility:'none'},
+        paint:{ 'circle-radius':5.5, 'circle-color':'#d62828', 'circle-stroke-width':2, 'circle-stroke-color':'#ffffff' } });
+      map.addLayer({ id:'kantor-kec-circle', type:'circle', source:'kantor-peta', filter:['==',['get','jenis'],'kecamatan'], layout:{visibility:'none'},
+        paint:{ 'circle-radius':8, 'circle-color':'#0b3d91', 'circle-stroke-width':2.5, 'circle-stroke-color':'#ffffff' } });
+      try{
+        map.addLayer({ id:'kantor-desa-label', type:'symbol', source:'kantor-peta', filter:['==',['get','jenis'],'desa'], minzoom:12,
+          layout:{ visibility:'none', 'text-field':['concat','Kantor Desa ',['get','nama']], 'text-font':['Noto Sans Regular'], 'text-size':11, 'text-offset':[0,1], 'text-anchor':'top' },
+          paint:{ 'text-color':'#8f1d1d', 'text-halo-color':'#ffffff', 'text-halo-width':1.5 } });
+        map.addLayer({ id:'kantor-kec-label', type:'symbol', source:'kantor-peta', filter:['==',['get','jenis'],'kecamatan'], minzoom:9,
+          layout:{ visibility:'none', 'text-field':['concat','Kantor Camat ',['get','nmkec']], 'text-font':['Noto Sans Bold'], 'text-size':12, 'text-offset':[0,1.2], 'text-anchor':'top' },
+          paint:{ 'text-color':'#0b3d91', 'text-halo-color':'#ffffff', 'text-halo-width':1.8 } });
+      }catch(le){ console.warn('Label kantor tidak bisa ditampilkan:', le && le.message); }
+      ['kantor-desa-circle','kantor-kec-circle'].forEach(id=>{
+        map.on('click', id, (e)=>{
+          const f = e.features && e.features[0]; if(!f) return;
+          const p = f.properties || {};
+          const esc = t=>String(t==null?'':t).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+          const judul = p.jenis==='kecamatan' ? 'Kantor Camat ' + esc(p.nmkec) : 'Kantor Desa ' + esc(p.nama);
+          const sub = p.jenis==='kecamatan' ? '' : 'Kec. ' + esc(p.nmkec) + '<br>';
+          const c = f.geometry.coordinates;
+          new maplibregl.Popup({closeButton:true, maxWidth:'260px'}).setLngLat(c)
+            .setHTML('<b>' + judul + '</b><br>' + sub + '<span style="font-size:12px;color:#555;">' + esc(p.ket) + '<br>Posisi perkiraan: ' + c[1].toFixed(6) + ', ' + c[0].toFixed(6) + '</span>').addTo(map);
+        });
+        map.on('mouseenter', id, ()=>{ map.getCanvas().style.cursor='pointer'; });
+        map.on('mouseleave', id, ()=>{ map.getCanvas().style.cursor=''; });
+      });
+    }
+    if(map._applyExtraVisibility) map._applyExtraVisibility();
+  }catch(e){ console.warn('Gagal memasang lapisan tambahan:', e && e.message); }
+}
+function addExtraLayerToggles(map, containerId, section){
+  const groups = [
+    {key:'jalan',  label:'Jalan (kabupaten, kecamatan, desa)', color:'#e4572e', layers:['jalan-peta-line']},
+    {key:'kdesa',  label:'Kantor Desa/Kelurahan', color:'#d62828', layers:['kantor-desa-circle','kantor-desa-label']},
+    {key:'kkec',   label:'Kantor Kecamatan', color:'#0b3d91', layers:['kantor-kec-circle','kantor-kec-label']}
+  ];
+  groups.forEach(g=>{ extraVisible[containerId+'|'+g.key] = false; });
+  function applyVisibility(){
+    groups.forEach(g=>{
+      const vis = extraVisible[containerId+'|'+g.key];
+      g.layers.forEach(id=>{ if(map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis ? 'visible' : 'none'); });
+    });
+  }
+  if(section){
+    groups.forEach(g=>{
+      section.appendChild(makeSwitchRow(g.label, false, (checked)=>{
+        extraVisible[containerId+'|'+g.key] = checked;
+        applyVisibility();
+        if(checked && !extraLoadPromise) loadExtraData();
+      }, g.color));
+    });
+  }
+  map._applyExtraVisibility = applyVisibility;
 }
 
 /* Pasang source+layer poligon batas SLS ke sebuah peta (dipanggil ulang tiap style peta berganti). */
