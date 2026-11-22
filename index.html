@@ -588,6 +588,7 @@
         serta <b>nama setiap dusun/SLS</b>. Karena berformat vektor (SVG), gambar tetap tajam meskipun diperbesar
         (zoom) berkali-kali lipat — cocok untuk mencari nama dusun yang letaknya berdekatan.
       </p>
+      <div class="mfd-peta-statis-note" id="petaStatisNote" style="margin:0 0 10px;padding:8px 12px;border-radius:8px;background:#e4f3fb;border:1px solid #a9d8ef;color:#0b4f78;font-size:13px;line-height:1.45;"></div>
       <a href="peta_wilayah_enrekang.svg" target="_blank" rel="noopener" class="btn" style="text-decoration:none;display:inline-block;">
         🔍 Buka Peta Ukuran Penuh di Tab Baru (bisa di-zoom)
       </a>
@@ -962,8 +963,18 @@ function openMfdNotes(){
   m.addEventListener('click', e=>{ if(e.target===m) close(); });
   document.addEventListener('keydown', e=>{ if(e.key==='Escape' && m.style.display==='flex') close(); });
 })();
+/* Peta statis (peta_wilayah_enrekang.svg) dibuat manual di Affinity. Setelah diperbarui, ubah dua konstanta ini. */
+const PETA_STATIS_MFD = '2025_2';
+function updatePetaStatisNote(){
+  const el = document.getElementById('petaStatisNote'); if(!el) return;
+  const label = 'MFD ' + PETA_STATIS_MFD.replace('_','-');
+  el.innerHTML = (PETA_STATIS_MFD === mfdVersion)
+    ? `🗺️ Peta statis ini sesuai dengan <b>${label}</b>, versi yang sedang Anda pilih.`
+    : `🗺️ Peta statis ini mengacu pada <b>${label}</b>, sedangkan versi yang Anda pilih adalah <b>MFD ${mfdVersion.replace('_','-')}</b>. Peta ini belum diperbarui, jadi perubahan terbaru (misalnya SLS baru atau yang digabung) belum tampak di sini. Untuk data terbaru, gunakan tab <b>Peta Sebaran</b>.`;
+}
 function updateMfdLabels(){
   const t = 'MFD ' + mfdVersion;
+  try{ updatePetaStatisNote(); }catch(e){}
   try{ renderMfdChangeBox(); }catch(e){}
   const a = document.getElementById('mfdBadge'); if(a) a.textContent = t;
   const b = document.getElementById('mfdFooterLabel'); if(b) b.textContent = t;
