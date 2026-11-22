@@ -16,7 +16,7 @@
  * Menaikkan CACHE_VERSION tetap berguna sesekali (misalnya kalau mengganti
  * ikon/manifest), karena itu akan membersihkan cache lama yang menumpuk.
  */
-const CACHE_VERSION = 'v6';
+const CACHE_VERSION = 'v7';
 const CACHE_NAME = 'sls-enrekang-' + CACHE_VERSION;
 
 // Berkas inti aplikasi (app shell) yang wajib tersedia offline.
@@ -79,7 +79,8 @@ self.addEventListener('fetch', (event) => {
 
   // Berkas batas wilayah (.geojson) juga NETWORK-FIRST (v6): kalau cache-first, perangkat
   // yang pernah memuat batas lama akan menampilkan batas LAMA dulu setelah file diganti di GitHub.
-  const isBoundaryGeojson = url.pathname.endsWith('.geojson');
+  // v7: peta statis (.svg) juga network-first, jadi peta baru dari Affinity langsung terlihat tanpa naik versi.
+  const isBoundaryGeojson = url.pathname.endsWith('.geojson') || url.pathname.endsWith('.svg');
 
   if (isHtmlDocument || isBoundaryGeojson) {
     // NETWORK-FIRST untuk halaman utama & berkas batas: setiap update langsung
