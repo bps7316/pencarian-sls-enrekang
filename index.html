@@ -2673,14 +2673,7 @@ function ensureExtraLayers(map){
       }catch(le){ console.warn('Label kantor tidak bisa ditampilkan:', le && le.message); }
       ['kantor-desa-circle','kantor-kec-circle'].forEach(id=>{
         map.on('click', id, (e)=>{
-          const f = e.features && e.features[0]; if(!f) return;
-          const p = f.properties || {};
-          const esc = t=>String(t==null?'':t).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-          const judul = p.jenis==='kecamatan' ? 'Kantor Camat ' + esc(p.nmkec) : 'Kantor Desa ' + esc(p.nama);
-          const sub = p.jenis==='kecamatan' ? '' : 'Kec. ' + esc(p.nmkec) + '<br>';
-          const c = f.geometry.coordinates;
-          new maplibregl.Popup({closeButton:true, maxWidth:'260px'}).setLngLat(c)
-            .setHTML('<b>' + judul + '</b><br>' + sub + '<span style="font-size:12px;color:#555;">' + esc(p.ket) + '<br>Posisi perkiraan: ' + c[1].toFixed(6) + ', ' + c[0].toFixed(6) + '</span>').addTo(map);
+          const f = e.features && e.features[0]; if(f) openKantorPopup(map, f);
         });
         map.on('mouseenter', id, ()=>{ map.getCanvas().style.cursor='pointer'; });
         map.on('mouseleave', id, ()=>{ map.getCanvas().style.cursor=''; });
@@ -2689,6 +2682,67 @@ function ensureExtraLayers(map){
     if(map._applyExtraVisibility) map._applyExtraVisibility();
   }catch(e){ console.warn('Gagal memasang lapisan tambahan:', e && e.message); }
 }
+
+function openKantorPopup(map, f){
+  const p = f.properties || {};
+  const esc = t=>String(t==null?'':t).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const judul = p.jenis==='kecamatan' ? 'Kantor Camat ' + esc(p.nmkec) : 'Kantor Desa ' + esc(p.nama);
+  const sub = p.jenis==='kecamatan' ? '' : 'Kec. ' + esc(p.nmkec) + '<br>';
+  const c = f.geometry.coordinates;
+  const nav = 'https://www.google.com/maps/dir/?api=1&destination=' + c[1] + ',' + c[0];
+  new maplibregl.Popup({closeButton:true, maxWidth:'270px'}).setLngLat(c)
+    .setHTML('<b>' + judul + '</b><br>' + sub + '<span style="font-size:12px;color:#555;">' + esc(p.ket) + '<br>Posisi perkiraan: ' + c[1].toFixed(6) + ', ' + c[0].toFixed(6) + '</span>'
+      + '<br><a href="' + nav + '" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;font-weight:700;">🧭 Navigasi ke sini</a>').addTo(map);
+}
+function cariKantor(q){
+  const d = extraData.kantor; if(!d || !q) return [];
+  const t = q.toLowerCase().replace(/^(kantor\s+)?(desa|camat|kecamatan|kelurahan)?\s*/,'').trim() || q.toLowerCase();
+  const ql = q.toLowerCase(), mauCamat = /camat|kecamatan/.test(ql), mauDesa = /desa|kelurahan/.test(ql);
+  const skor = f=>{
+    const p = f.properties || {}, nm = (p.nama||'').toLowerCase().replace(/^kec\.\s*/,'');
+    let sc = 0;
+    if(nm === t) sc += 4;
+    if(nm.includes(t)) sc += 2;
+    if(mauCamat && p.jenis==='kecamatan') sc += 3;
+    if(mauDesa && p.jenis==='desa') sc += 3;
+    return sc;
+  };
+  return d.features.filter(f=>{
+    const p = f.properties || {};
+    return (p.nama||'').toLowerCase().includes(t) || (p.nmkec||'').toLowerCase().includes(t);
+  }).sort((x,y)=>skor(y)-skor(x)).slice(0, 8);
+}
+function addKantorSearchBox(map, containerId, section){
+  const box = document.createElement('div');
+  box.style.cssText = 'margin-top:6px;';
+  box.innerHTML = '<input type="search" placeholder="Cari kantor desa/kecamatan…" style="width:100%;box-sizing:border-box;padding:6px 8px;font-size:12.5px;border:1px solid #c5ced6;border-radius:6px;"><div class="kantor-hasil" style="margin-top:4px;font-size:12.5px;"></div>';
+  const inp = box.querySelector('input'), out = box.querySelector('.kantor-hasil');
+  inp.addEventListener('focus', ()=>{ if(!extraLoadPromise) loadExtraData(); });
+  inp.addEventListener('input', async ()=>{
+    await loadExtraData();
+    const hasil = cariKantor(inp.value.trim());
+    out.innerHTML = '';
+    if(inp.value.trim() && !hasil.length){ out.textContent = 'Tidak ditemukan.'; return; }
+    hasil.forEach(f=>{
+      const p = f.properties, b = document.createElement('button');
+      b.type = 'button';
+      b.style.cssText = 'display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #e3e8ed;padding:5px 2px;cursor:pointer;font-size:12.5px;color:inherit;';
+      b.textContent = (p.jenis==='kecamatan' ? '⭐ Kantor Camat ' + p.nmkec : '📍 Kantor Desa ' + p.nama + ' (Kec. ' + p.nmkec + ')');
+      b.addEventListener('click', ()=>{
+        const grpKey = containerId + '|' + (p.jenis==='kecamatan' ? 'kkec' : 'kdesa');
+        extraVisible[grpKey] = true;
+        const cb = section && section.querySelectorAll('input[type=checkbox]');
+        if(cb && cb.length){ const idx = p.jenis==='kecamatan' ? 2 : 1; if(cb[idx]) cb[idx].checked = true; }
+        if(map._applyExtraVisibility) map._applyExtraVisibility();
+        map.flyTo({center:f.geometry.coordinates, zoom: Math.max(map.getZoom(), p.jenis==='kecamatan' ? 13 : 15), essential:true});
+        openKantorPopup(map, f);
+      });
+      out.appendChild(b);
+    });
+  });
+  section.appendChild(box);
+}
+
 function addExtraLayerToggles(map, containerId, section){
   const groups = [
     {key:'jalan',  label:'Jalan (kabupaten, kecamatan, desa)', color:'#e4572e', layers:['jalan-peta-line']},
@@ -2710,6 +2764,7 @@ function addExtraLayerToggles(map, containerId, section){
         if(checked && !extraLoadPromise) loadExtraData();
       }, g.color));
     });
+    addKantorSearchBox(map, containerId, section);
   }
   map._applyExtraVisibility = applyVisibility;
 }
