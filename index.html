@@ -883,6 +883,11 @@ function highlight(text, q){
   return s.slice(0,idx) + '<mark>' + s.slice(idx, idx+q.length) + '</mark>' + s.slice(idx+q.length);
 }
 function mapsLink(lat,lng){
+  const latOk = lat!=null && lat!=='' && isFinite(lat), lngOk = lng!=null && lng!=='' && isFinite(lng);
+  if(!latOk || !lngOk){
+    // Titik belum diisi (kosong di Google Sheets): jangan tampilkan "NaN" atau tautan peta yang rusak.
+    return `<span class="coord-raw" style="color:#8a6d1d;">📍 Belum ada titik koordinat</span>`;
+  }
   const latDisp = (lat!=null && isFinite(lat)) ? Number(lat).toFixed(6) : lat;
   const lngDisp = (lng!=null && isFinite(lng)) ? Number(lng).toFixed(6) : lng;
   return `<a class="geo-link" href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener">📍 Lihat di Peta</a> <span class="coord-raw">(${latDisp}, ${lngDisp})</span> <button class="action-btn copy-coord" type="button" title="Salin koordinat" onclick="copyCoord(this,${lat},${lng})">📋</button>${coordAnomalyBadge(lat,lng)}`;
