@@ -225,6 +225,19 @@
   .ringkas .col-coord-text{display:none;}
 
   .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+  .mfd-change-box{grid-column:1 / -1;}
+  .mfd-change-sub{font-size:13px;color:var(--muted);margin:2px 0 10px;}
+  .mfd-change-list{display:flex;flex-direction:column;gap:8px;}
+  .mfd-change-item{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;}
+  .mfd-change-tag{flex:0 0 118px;text-align:center;font-weight:700;font-size:12.5px;padding:4px 6px;border-radius:999px;border:1px solid transparent;}
+  .mfd-change-tag.t-pemekaran{background:#e5f6e8;color:#1c6b2e;border-color:#a8d8b2;}
+  .mfd-change-tag.t-penggabungan{background:#fde9e3;color:#a1401f;border-color:#f0b8a4;}
+  .mfd-change-tag.t-batas{background:#e4f3fb;color:#0d6ea8;border-color:#a9d8ef;}
+  .mfd-change-tag.t-nama{background:#fff3d6;color:#8a6200;border-color:#e6b84a;}
+  .mfd-change-tag.t-lain{background:#eceff1;color:#455a64;border-color:#cfd8dc;}
+  .mfd-change-text{flex:1;min-width:0;font-size:14px;line-height:1.45;}
+  .mfd-change-text b{display:block;margin-bottom:1px;}
+  @media (max-width:600px){ .mfd-change-item{flex-direction:column;gap:6px;} .mfd-change-tag{flex:none;align-self:flex-start;} }
   @media (max-width:760px){ .chart-grid{grid-template-columns:1fr;} }
   .chart-box{background:var(--card-bg);border:1px solid var(--line);border-top:3px solid var(--moss);border-radius:10px;padding:16px 18px;margin-bottom:0;font-family:Arial,sans-serif;box-shadow:0 2px 8px rgba(19,36,55,0.05);max-height:520px;overflow-y:auto;}
   .chart-title{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--moss-dark);margin-bottom:12px;position:sticky;top:0;background:var(--card-bg);padding-bottom:4px;}
@@ -538,9 +551,10 @@
         </div>
         <div id="compareKecResult"></div>
       </div>
-      <div class="chart-box" style="margin-bottom:14px;" id="mfdChangeBox">
-        <div class="chart-title"><span class="chart-dot" style="background:var(--clay);"></span><span id="mfdChangeTitle">Keterangan Perubahan SLS</span></div>
-        <div id="mfdChangeBody" style="margin-top:8px;"></div>
+      <div class="chart-box mfd-change-box" style="margin-bottom:14px;" id="mfdChangeBox">
+        <div class="chart-title"><span class="chart-dot" style="background:var(--clay);"></span>Keterangan Perubahan SLS</div>
+        <div class="mfd-change-sub" id="mfdChangeTitle"></div>
+        <div id="mfdChangeBody"></div>
       </div>
     </div>
     <div class="count-line">
@@ -683,7 +697,7 @@
     </div>
   </div>
 
-  <footer>Klik titik koordinat untuk membuka lokasi di Google Maps &middot; Data mengikuti struktur MFD Semester 2 Tahun 2025.</footer>
+  <footer>Klik titik koordinat untuk membuka lokasi di Google Maps &middot; Data mengikuti struktur <span id="mfdFooterNote">MFD 2026-1</span>.</footer>
 
   <footer class="app-footer">
     <div class="footer-left">
@@ -903,13 +917,19 @@ function mfdBaruBadge(row){
   return ' <span class="pill" style="background:#e5f6e8;color:#1c6b2e;border:1px solid #a8d8b2;" title="SLS baru pada MFD 2026-1">🆕 Baru</span>';
 }
 function mfdEsc(t){ return String(t).replace(/[&<>]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch])); }
+function mfdTagClass(jenis){
+  const j = String(jenis).toLowerCase();
+  if(j.indexOf('pemekaran')>=0) return 't-pemekaran';
+  if(j.indexOf('penggabungan')>=0) return 't-penggabungan';
+  if(j.indexOf('batas')>=0) return 't-batas';
+  if(j.indexOf('nama')>=0) return 't-nama';
+  return 't-lain';
+}
 function mfdNotesHtml(c){
-  let h = `<p>${mfdEsc(c.ringkas)}</p>`;
+  let h = c.ringkas ? `<p style="margin:0 0 10px;font-size:14px;color:var(--muted);">${mfdEsc(c.ringkas)}</p>` : '';
   if(c.items.length){
-    const th = 'text-align:left;padding:6px;border-bottom:1px solid #ccd;';
-    h += `<div class="table-scroll"><table style="width:100%;border-collapse:collapse;font-size:14px;"><thead><tr><th style="${th}">Jenis</th><th style="${th}">Wilayah</th><th style="${th}">Keterangan</th></tr></thead><tbody>`
-      + c.items.map(it=>`<tr><td style="padding:6px;vertical-align:top;font-weight:600;white-space:nowrap;">${mfdEsc(it[0])}</td><td style="padding:6px;vertical-align:top;">${mfdEsc(it[1])}</td><td style="padding:6px;vertical-align:top;">${mfdEsc(it[2])}</td></tr>`).join('')
-      + '</tbody></table></div>';
+    h += '<div class="mfd-change-list">' + c.items.map(it=>
+      `<div class="mfd-change-item"><span class="mfd-change-tag ${mfdTagClass(it[0])}">${mfdEsc(it[0])}</span><div class="mfd-change-text"><b>${mfdEsc(it[1])}</b>${mfdEsc(it[2])}</div></div>`).join('') + '</div>';
   } else {
     h += '<p><i>Tidak ada catatan perubahan.</i></p>';
   }
@@ -925,7 +945,7 @@ function mfdSelisihKecamatanHtml(){
 function renderMfdChangeBox(){
   const body = document.getElementById('mfdChangeBody'); if(!body) return;
   const c = MFD_CATATAN[mfdVersion] || {judul:'', ringkas:'', items:[]};
-  document.getElementById('mfdChangeTitle').textContent = 'Keterangan Perubahan SLS — ' + c.judul;
+  document.getElementById('mfdChangeTitle').textContent = c.judul;
   body.innerHTML = mfdNotesHtml(c) + mfdSelisihKecamatanHtml();
 }
 function openMfdNotes(){
@@ -947,6 +967,7 @@ function updateMfdLabels(){
   try{ renderMfdChangeBox(); }catch(e){}
   const a = document.getElementById('mfdBadge'); if(a) a.textContent = t;
   const b = document.getElementById('mfdFooterLabel'); if(b) b.textContent = t;
+  const n = document.getElementById('mfdFooterNote'); if(n) n.textContent = t;
 }
 function mfdBlockedToast(){ try{ showToast('📦 Arsip MFD 2025-2 hanya bisa dilihat. Pilih MFD 2026-1 untuk memperbarui data.', 'info'); }catch(e){} }
 (function applyInitialMfdUi(){
