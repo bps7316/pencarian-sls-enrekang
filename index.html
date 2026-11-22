@@ -593,6 +593,17 @@
         <button class="btn" type="button" data-peta="lengkap">🗺️ Peta Lengkap (detail, nama dusun)</button>
         <button class="btn outline" type="button" data-peta="ringkas">📄 Peta Ringkas (kecamatan, desa &amp; SLS, ringan)</button>
       </div>
+      <div id="petaLayerBox" style="display:none;margin:0 0 10px;padding:8px 12px;border:1px solid #d6dde3;border-radius:8px;background:#f7fafc;font-size:13px;line-height:1.9;">
+        <b>Tampilkan layer:</b>
+        <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="sls" checked> Batas SLS</label>
+        <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="desa" checked> Batas desa</label>
+        <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="labeldesa" checked> Nama &amp; kode desa</label>
+        <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="kantor" checked> Kantor desa</label>
+        <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="sungai" checked> Sungai</label>
+        <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="jalan"> Jalan</label>
+        <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="gunung"> Gunung</label>
+        <label style="margin-left:10px;white-space:nowrap;"><input type="checkbox" data-lyr="fasilitas"> Pasar, SPBU, kampus, lapangan</label>
+      </div>
       <a id="petaStatisLink" href="peta_wilayah_enrekang.svg" target="_blank" rel="noopener" class="btn" style="text-decoration:none;display:inline-block;">
         🔍 Buka Peta Ukuran Penuh di Tab Baru (bisa di-zoom)
       </a>
@@ -609,6 +620,7 @@
       <div style="max-height:640px;overflow:auto;background:#fff;text-align:center;padding:8px;">
         <a id="petaStatisLink2" href="peta_wilayah_enrekang.svg" target="_blank" rel="noopener">
           <img id="petaStatisImg" src="peta_wilayah_enrekang.svg" alt="Peta Administrasi Kabupaten Enrekang" style="width:100%;max-width:1400px;height:auto;cursor:zoom-in;">
+          <div id="petaStatisInline" style="display:none;width:100%;max-width:1400px;margin:0 auto;"></div>
         </a>
       </div>
     </div>
@@ -977,14 +989,52 @@ function updatePetaStatisNote(){
     : `🗺️ Peta statis ini mengacu pada <b>${label}</b>, sedangkan versi yang Anda pilih adalah <b>MFD ${mfdVersion.replace('_','-')}</b>. Peta ini belum diperbarui, jadi perubahan terbaru (misalnya SLS baru atau yang digabung) belum tampak di sini. Untuk data terbaru, gunakan tab <b>Peta Sebaran</b>.`;
 }
 const PETA_STATIS_FILES = {lengkap:'peta_wilayah_enrekang.svg', ringkas:'peta_wilayah_ringkas.svg'};
+const PETA_LAYER_MAP = {
+  sls:['lyr-sls'], desa:['lyr-batas-desa'], labeldesa:['lyr-label-desa'], kantor:['lyr-kantor','lgd-kantor'],
+  sungai:['lyr-sungai','lgd-sungai'], jalan:['lyr-jalan','lgd-jalan'], gunung:['lyr-gunung','lgd-gunung'], fasilitas:['lyr-fasilitas','lgd-fas']
+};
+let petaLayerState = {sls:true, desa:true, labeldesa:true, kantor:true, sungai:true, jalan:false, gunung:false, fasilitas:false};
+try{ Object.assign(petaLayerState, JSON.parse(localStorage.getItem('peta_layer')||'{}')); }catch(e){}
+let petaInlineLoaded = false;
+function applyPetaLayers(){
+  const host = document.getElementById('petaStatisInline'); if(!host) return;
+  Object.keys(PETA_LAYER_MAP).forEach(k=>{
+    PETA_LAYER_MAP[k].forEach(id=>{
+      host.querySelectorAll('#'+id+', .'+id).forEach(el=>{ el.style.display = petaLayerState[k] ? '' : 'none'; });
+    });
+  });
+  document.querySelectorAll('#petaLayerBox input[data-lyr]').forEach(c=>{ c.checked = !!petaLayerState[c.dataset.lyr]; });
+  try{ localStorage.setItem('peta_layer', JSON.stringify(petaLayerState)); }catch(e){}
+}
+async function loadPetaInline(){
+  const host = document.getElementById('petaStatisInline'); if(!host) return;
+  if(!petaInlineLoaded){
+    host.textContent = 'Memuat peta…';
+    try{
+      const r = await fetch(PETA_STATIS_FILES.ringkas, {cache:'no-cache'});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      host.innerHTML = await r.text();
+      const sv = host.querySelector('svg'); if(sv){ sv.removeAttribute('width'); sv.removeAttribute('height'); sv.style.width='100%'; sv.style.height='auto'; }
+      petaInlineLoaded = true;
+    }catch(e){ host.textContent = 'Peta ringkas belum tersedia.'; return; }
+  }
+  applyPetaLayers();
+}
 function setPetaStatis(jenis){
   const f = PETA_STATIS_FILES[jenis] || PETA_STATIS_FILES.lengkap;
   ['petaStatisLink','petaStatisLink2'].forEach(id=>{ const a=document.getElementById(id); if(a) a.href=f; });
-  const im = document.getElementById('petaStatisImg'); if(im) im.src=f;
+  const im = document.getElementById('petaStatisImg'), inl = document.getElementById('petaStatisInline'), box = document.getElementById('petaLayerBox');
+  const ringkas = (jenis==='ringkas');
+  if(im){ im.style.display = ringkas ? 'none' : ''; if(!ringkas) im.src = f; }
+  if(inl) inl.style.display = ringkas ? 'block' : 'none';
+  if(box) box.style.display = ringkas ? 'block' : 'none';
+  if(ringkas) loadPetaInline();
   document.querySelectorAll('#petaStatisPilih [data-peta]').forEach(b=>b.classList.toggle('outline', b.dataset.peta!==jenis));
   try{ localStorage.setItem('peta_statis_jenis', jenis); }catch(e){}
 }
 (function(){
+  const lb=document.getElementById('petaLayerBox');
+  if(lb) lb.addEventListener('change', e=>{ const c=e.target.closest('input[data-lyr]'); if(!c) return; petaLayerState[c.dataset.lyr]=c.checked; applyPetaLayers(); });
   const box=document.getElementById('petaStatisPilih'); if(!box) return;
   box.addEventListener('click', e=>{ const b=e.target.closest('[data-peta]'); if(b) setPetaStatis(b.dataset.peta); });
   let j='lengkap'; try{ j=localStorage.getItem('peta_statis_jenis')||'lengkap'; }catch(e){}
