@@ -197,6 +197,8 @@
   table{border-collapse:collapse;width:100%;min-width:1000px;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;}
   thead th{background:linear-gradient(180deg, var(--moss) 0%, var(--moss-dark) 100%);color:var(--on-dark);text-align:left;padding:9px 8px;position:sticky;top:0;font-weight:600;white-space:nowrap;border-right:1px solid rgba(255,255,255,0.12);z-index:2;cursor:pointer;user-select:none;}
   thead th:hover{background:var(--moss);}
+  #rekapTable tfoot td{padding:11px 8px;font-size:13.5px;position:sticky;bottom:0;box-shadow:0 -2px 0 var(--moss);background:#e3f1ef;color:var(--moss-dark);font-weight:700;border-top:2px solid var(--moss);z-index:1;}
+  @media print{#rekapTable tfoot td{position:static;}}
   thead th.no-sort{cursor:default;}
   thead th.no-sort:hover{background:var(--moss-dark);}
   thead th .arrow{opacity:0.55;font-size:10px;margin-left:3px;}
@@ -576,6 +578,7 @@
           </tr>
         </thead>
         <tbody id="rekapBody"></tbody>
+        <tfoot id="rekapFoot"></tfoot>
       </table>
     </div>
   </div>
@@ -3651,6 +3654,15 @@ function renderRekap(){
       <td>${k.jml_sls}</td>
       <td>${k.jml_subsls}</td>
     </tr>`).join('');
+  const tot = KEC_AGG.reduce((a,k)=>({desa:a.desa+k.jml_desa, sls:a.sls+k.jml_sls, sub:a.sub+k.jml_subsls}), {desa:0,sls:0,sub:0});
+  document.getElementById('rekapFoot').innerHTML = `
+    <tr>
+      <td class="no"></td>
+      <td>TOTAL KABUPATEN (${KEC_AGG.length} kecamatan)</td>
+      <td>${tot.desa}</td>
+      <td>${tot.sls}</td>
+      <td>${tot.sub}</td>
+    </tr>`;
 }
 renderRekap();
 wireSort('rekapTable', rekapSort, renderRekap);
@@ -3714,6 +3726,7 @@ fillCompareOptions();
 document.getElementById('rekapExportBtn').addEventListener('click', ()=>{
   const headers = ['Kecamatan','Jml Desa/Kel','Jml SLS','Jml SubSLS'];
   const rows = [...KEC_AGG].sort((a,b)=>b.jml_desa-a.jml_desa).map(k=>[k.nmkec,k.jml_desa,k.jml_sls,k.jml_subsls]);
+  rows.push(['TOTAL KABUPATEN', KEC_AGG.reduce((a,k)=>a+k.jml_desa,0), KEC_AGG.reduce((a,k)=>a+k.jml_sls,0), KEC_AGG.reduce((a,k)=>a+k.jml_subsls,0)]);
   downloadCsv('rekap_kecamatan.csv', headers, rows);
 });
 document.getElementById('rekapPrintBtn').addEventListener('click', ()=>printPanel('panel-rekap'));
